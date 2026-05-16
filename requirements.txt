@@ -1,7 +1,9 @@
+setuptools
+wheel
 django==4.2
 djangorestframework==3.14
-djangorestframework-simplejwt==5.3
-psycopg2-binary==2.9
+djangorestframework-simplejwt==5.4.0
+psycopg2-binary==2.9.9
 redis==5.0
 celery==5.3
 django-environ==0.11

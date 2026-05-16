@@ -1,15 +1,8 @@
-version: "3.9"
-
-# ── Run JUST the user-service ──────────────────────────────────────────────────
-# docker compose up
-#
-# Later, when you have all services, you'll have ONE root docker-compose.yml
-# that includes all services together.
-
 services:
 
   user-service:
     build: .
+    command: python manage.py runserver 0.0.0.0:8001
     ports:
       - "8001:8001"
     env_file: .env
@@ -19,26 +12,30 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - .:/app    # live reload during development
+      - .:/app
 
-  # Celery worker — processes async tasks (if any)
   celery-worker:
     build: .
     command: celery -A config worker --loglevel=info
     env_file: .env
     depends_on:
-      - redis
-      - user-db
+      user-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
 
-  # Redis subscriber — listens to events from other services
   subscriber:
     build: .
     command: python users/subscriber.py
     env_file: .env
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
 
-  # PostgreSQL — ONLY for users (its own database)
   user-db:
     image: postgres:16-alpine
     environment:
@@ -46,7 +43,7 @@ services:
       POSTGRES_USER: useruser
       POSTGRES_PASSWORD: userpass
     ports:
-      - "5433:5432"    # 5433 so it doesn't clash with other DBs
+      - "5433:5432"
     volumes:
       - user_db_data:/var/lib/postgresql/data
     healthcheck:
@@ -55,7 +52,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis — shared message bus between ALL services
   redis:
     image: redis:7-alpine
     ports:
@@ -68,3 +64,4 @@ services:
 
 volumes:
   user_db_data:
+~
