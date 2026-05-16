@@ -1,0 +1,68 @@
+services:
+
+  movie-service:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8002
+    ports:
+      - "8002:8002"
+    env_file: .env
+    depends_on:
+      movie-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  celery-worker:
+    build: .
+    command: celery -A config worker --loglevel=info
+    env_file: .env
+    depends_on:
+      movie-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  subscriber:
+    build: .
+    command: python movies/subscriber.py
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  movie-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: moviedb
+      POSTGRES_USER: movieuser
+      POSTGRES_PASSWORD: moviepass
+    ports:
+      - "5434:5432"       # 5434 — different from user-db (5433)
+    volumes:
+      - movie_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U movieuser -d moviedb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Shared Redis — connects to the SAME redis as user-service
+  # so they can share events on the same bus
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  movie_db_data:
